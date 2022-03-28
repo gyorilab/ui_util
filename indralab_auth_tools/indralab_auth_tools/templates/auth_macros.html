@@ -233,7 +233,7 @@
     <div id="overlay-form-div">
         <div style="padding: 1em; text-align: center; margin-left: auto; margin-right: auto;">
             <img src="https://bigmech.s3.amazonaws.com/indra-db/indralab_bare_logo.png" width="150em">
-            <h1>IndraLab</h1>
+            <h1>INDRA Labs</h1>
         </div>
         <div class="container nav-container">
             <nav>
@@ -256,10 +256,12 @@
                 <form class="form overlay-form" id="overlay-form-login"
                       onsubmit="return false;">
                     <input type="hidden" name="type" value="login">
-                    email <input name="email"
+                    <label for="login-email">Email</label>
+                    <input id="login-email" name="email"
                                  type='email' class="form-control"
                                  placeholder="your@email.com">
-                    password <input name="password"
+                    <label for="login-password">Password</label>
+                    <input id="login-password" name="password"
                                     type='password' class="form-control"
                                     placeholder="password">
                     <button class="btn btn-primary" type='submit'
@@ -273,13 +275,19 @@
                 <form class="form overlay-form" id="overlay-form-register"
                       onsubmit="return false;">
                     <input type="hidden" name="type" value="register">
-                    email <input name="email"
+                    <label for="registration-email">Email</label>
+                    <input id="registration-email" name="email"
                                  type='email' class="form-control"
                                  placeholder="your@email.com">
-                    password <input name="password0"
+                    <label for="registration-orcid">ORCID</label>
+                    <input id="registration-orcid" name="orcid"
+                           type='text' class="form-control"
+                           placeholder="XXXX-XXXX-XXXX-XXXX">
+                    <label for="registration-password">Password</label>
+                    <input id="registration-password" name="password0"
                                     type='password' class="form-control"
                                     placeholder="password">
-                    <input name="password1" type='password'
+                    <input id="registration-password-confirmation" name="password1" type='password'
                            class="form-control" placeholder="repeat password">
                     <button class="btn btn-primary" type='submit'
                             id="overlay-button-register">
