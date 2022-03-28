@@ -11,7 +11,6 @@ from sqlalchemy import Boolean, DateTime, Column, Integer, \
                        String, ForeignKey, LargeBinary
 from sqlalchemy.dialects.postgresql import JSON, JSONB
 
-
 from indralab_auth_tools.src.database import Base, engine
 
 logger = logging.getLogger(__name__)
