@@ -1,309 +1,330 @@
 {% macro login_overlay(url_prefix="") -%}
-<style>
-    #overlay {
-        position: fixed;
-        display: none;
-        width: 100%;
-        height: 100%;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background-color: rgba(0, 0, 0, 0.5);
-        z-index: 2048;
-        cursor: pointer;
-    }
+    <style>
+        #overlay {
+            position: fixed;
+            display: none;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 2048;
+            cursor: pointer;
+        }
 
-    #overlay-form-div {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        font-size: 40px;
-        color: black;
-        background-color: lightgray;
-        border-radius: 4px;
-        transform: translate(-50%, -50%);
-        -ms-transform: translate(-50%, -50%);
-        padding: 1em;
-        max-width: 15em;
-    }
+        #x-out {
+            border-radius: 25px;
+            height: 50px;
+            width: 50px;
+            position: absolute;
+            top: 30px;
+            right: 30px;
+        }
 
-    .overlay-form {
-        padding: 1em;
-    }
+        #overlay-message {
+            font-size: 9pt;
+            color: #803030;
+            max-width: 10em;
+        }
+    </style>
+    <script>
+        let AUTH_URLS = {
+            'login': "{{ url_prefix }}{{ url_for('auth.login') }}",
+            'register': "{{ url_prefix }}{{ url_for('auth.register') }}",
+            'logout': "{{ url_prefix }}{{ url_for('auth.logout') }}"
+        };
 
-    #x-out {
-        border-radius: 25px;
-        height: 50px;
-        width: 50px;
-        position: absolute;
-        top: 30px;
-        right: 30px;
-    }
+        function report_login_result(msg) {
+            console.log(msg);
+            document.querySelector('#overlay-message').textContent = msg;
+        }
 
-    .auth-tab {
-        background-color: white;
-        border-radius: 4px;
-    }
+        async function post_auth(action, json, on_complete) {
+            const resp = await fetch(AUTH_URLS[action], {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(json)
+            });
+            console.log(resp);
+            const resp_json = await resp.json();
+            on_complete(resp_json, resp);
+        }
 
-    #overlay-message {
-        font-size: 9pt;
-        color: #803030;
-        max-width: 10em;
-    }
-</style>
-<script>
-    let AUTH_URLS = {
-        'login': "{{ url_prefix }}{{ url_for('auth.login') }}",
-        'register': "{{ url_prefix }}{{ url_for('auth.register') }}",
-        'logout': "{{ url_prefix }}{{ url_for('auth.logout') }}"
-    };
+        function clear(item, email = true, password = true, orcid = true) {
 
-    function report_login_result(msg) {
-        console.log(msg);
-        document.querySelector('#overlay-message').textContent = msg;
-    }
-
-    async function post_auth(action, json, on_complete) {
-        const resp = await fetch(AUTH_URLS[action], {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(json)
-        });
-        console.log(resp);
-        const resp_json = await resp.json();
-        on_complete(resp_json, resp);
-    }
-
-    function clear(item, email=true, password=true, orcid=true) {
-
-        // Clear the password
-        if (password) {
-            if (item.type.value === 'register') {
-                item.password0.value = null;
-                item.password1.value = null;
+            // Clear the password
+            if (password) {
+                if (item.type.value === 'register') {
+                    item.password0.value = null;
+                    item.password1.value = null;
+                } else {
+                    item.password.value = null;
+                }
             }
-            else {
-                item.password.value = null;
+
+            // Clear the email
+            if (email) {
+                item.email.value = null;
+            }
+
+            // Clear the ORCID
+            if (orcid) {
+                item.orcid.value = null;
             }
         }
 
-        // Clear the email
-        if (email) {
-            item.email.value = null;
+        function reset_tabs() {
+            const login_classes =
+                document.querySelector('#nav-login').classList;
+            login_classes.add('active');
+            login_classes.add('show');
+
+            const login_tab_classes =
+                document.querySelector('#nav-login-tab').classList;
+            login_tab_classes.add('active');
+            login_tab_classes.add('show');
+
+            const register_classes =
+                document.querySelector('#nav-register').classList;
+            register_classes.remove('active');
+            register_classes.remove('show');
+
+            const register_tab_classes =
+                document.querySelector('#nav-register-tab').classList;
+            register_tab_classes.remove('active');
+            register_tab_classes.remove('show');
         }
 
-        // Clear the ORCID
-        if (orcid) {
-            item.orcid.value = null;
-        }
-    }
+        function login(success_callback = null, failure_callback = null,
+                       checked = false) {
+            /// If we haven't already...
+            if (!checked) {
+                // double check to see if we're already logged in.
+                post_auth('login', {}, (resp_json, resp) => {
+                    if (resp.status === 200)
+                        success_callback('login', resp_json);
+                    else
+                        return login(success_callback, failure_callback, true);
+                    return false;
+                });
+                return false;
+            }
 
-    function reset_tabs() {
-        const login_classes =
-            document.querySelector('#nav-login').classList;
-        login_classes.add('active');
-        login_classes.add('show');
+            // Prep the overlay.
+            const overlay = document.querySelector('#overlay');
+            document.querySelector('#x-out').onclick = () => {
+                // Abort the submit
+                overlay.style.display = "none";
+                return false;
+            };
+            document.querySelectorAll('.overlay-form').forEach((item, index) => {
+                item.onsubmit = function () {
+                    try {
+                        // Log the result
+                        console.log(`Got user email, ${this.email.value}, and password to ${this.type.value}`);
 
-        const login_tab_classes =
-            document.querySelector('#nav-login-tab').classList;
-        login_tab_classes.add('active');
-        login_tab_classes.add('show');
+                        if (this.type.value === 'register') {
+                            if (!this.email.value || !this.orcid.value || !this.password0.value || !this.password1.value) {
+                                report_login_result("Missing email, ORCID, or one of the passwords.");
+                                return false;
+                            }
 
-        const register_classes =
-            document.querySelector('#nav-register').classList;
-        register_classes.remove('active');
-        register_classes.remove('show');
+                            // TODO check the ORCID matches regular expression ^\d{4}-\d{4}-\d{4}-\d{3}(\d|X)$
 
-        const register_tab_classes =
-            document.querySelector('#nav-register-tab').classList;
-        register_tab_classes.remove('active');
-        register_tab_classes.remove('show');
-    }
+                            // Check the password
+                            if (this.password0.value !== this.password1.value) {
+                                clear(this, false, true, false);
+                                this.password.value = null;
+                                report_login_result("Passwords don't match.");
+                                return false;
+                            } else if (this.password0.value.length < 8) {
+                                clear(this, false, true, false);
+                                report_login_result("Password too short.");
+                                return false;
+                            }
 
-    function login(success_callback=null, failure_callback=null,
-                   checked=false) {
-        /// If we haven't already...
-        if (!checked) {
-            // double check to see if we're already logged in.
-            post_auth('login', {}, (resp_json, resp) => {
-                if (resp.status === 200)
-                    success_callback('login', resp_json);
-                else
-                    return login(success_callback, failure_callback, true);
+                            this.password = this.password0;
+                        } else {
+                            // Check for an email, if none, reject the form (do nothing)
+                            if (!this.email.value || !this.password.value) {
+                                report_login_result("Missing password or email.");
+                                return false;
+                            }
+                        }
+
+                        post_auth(
+                            this.type.value,
+                            {'email': this.email.value, 'password': this.password.value, 'orcid': this.orcid.value},
+                            (resp_json, resp) => {
+                                console.log(resp_json);
+
+                                if (resp.status !== 200) {
+                                    let msg = resp_json.message;
+                                    if (!msg)
+                                        msg = "Unknown Reason";
+                                    report_login_result(`Could not ${this.type.value}: ${msg}`);
+
+                                    // Clear the password field
+                                    clear(this, false, true, false);
+
+                                    if (failure_callback)
+                                        failure_callback(this.type.value, resp_json);
+                                    return false;
+                                }
+
+                                // Clear the form
+                                clear(this);
+
+                                // If this was a successful register, reset the form.
+                                if (this.type.value === 'register')
+                                    reset_tabs();
+
+                                // Credentials should now be stored in a cookie if this was a login.
+                                report_login_result(`Successful ${this.type.value}`);
+
+                                // Hide the overlay again.
+                                overlay.style.display = "none";
+
+                                // Call the success callback function.
+                                if (success_callback)
+                                    success_callback(this.type.value, resp_json);
+                                return false;
+
+                            }
+                        );
+                    } catch (e) {
+                        console.log(`Error while trying to authenticate: ${e}`)
+                    }
+                    return false;
+                };
+
+                // Popup the overlay
+                overlay.style.display = "block";
                 return false;
             });
             return false;
         }
 
-        // Prep the overlay.
-        const overlay = document.querySelector('#overlay');
-        document.querySelector('#x-out').onclick = () => {
-            // Abort the submit
-            overlay.style.display = "none";
-            return false;
-        };
-        document.querySelectorAll('.overlay-form').forEach((item, index) => {
-            item.onsubmit = function () {
-                try {
-                    // Log the result
-                    console.log(`Got user email, ${this.email.value}, and password to ${this.type.value}`);
+        function logout(callback) {
+            console.log(`Sending request to logout`);
+            post_auth('logout', {}, () => {
+                return callback()
+            });
+        }
+    </script>
+    <div id="overlay">
+        <button class="btn btn-danger" id="x-out">x</button>
+        <div class="row justify-content-center" style="margin-top: 5em;">
+            <div class="col-5">
+                <div class="card">
+                    <div class="card-header">
+                        <h1>
+                            <img src="https://bigmech.s3.amazonaws.com/indra-db/indralab_bare_logo.png"
+                                 style="max-height: 1em;">
+                            INDRA Labs
+                        </h1>
+                        <div class="nav nav-tabs card-header-tabs" id="nav-tab" role="tablist">
+                            <a class="nav-item nav-link active show"
+                               id="nav-login-tab"
+                               data-toggle="tab" href="#nav-login" role="tab"
+                               aria-controls="nav-login"
+                               aria-selected="true">Login</a>
+                            <a class="nav-item nav-link" id="nav-register-tab"
+                               data-toggle="tab" href="#nav-register" role="tab"
+                               aria-controls="nav-register"
+                               aria-selected="false">Register</a>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="tab-content" id="overlay-all-forms">
+                            <div class="tab-pane auth-tab fade active show" id="nav-login"
+                                 role="tabpanel" aria-labelledby="nav-login-tab">
+                                <form class="form overlay-form" id="overlay-form-login"
+                                      onsubmit="return false;">
+                                    <input type="hidden" name="type" value="login">
+                                    <input id="login-orcid" type="hidden" name="orcid" value="">
+                                    <div class="form-group">
+                                        <label class="form-control-label" for="login-email">Email</label>
+                                        <input id="login-email" name="email"
+                                               type='email' class="form-control"
+                                               placeholder="your@email.com">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-control-label" for="login-password">Password</label>
+                                        <input id="login-password" name="password"
+                                               type='password' class="form-control"
+                                               placeholder="password">
+                                    </div>
+                                    <button class="btn btn-primary" type='submit'
+                                            id="overlay-button-login">
+                                        Login
+                                    </button>
+                                </form>
+                            </div>
+                            <div class="tab-pane auth-tab fade" id="nav-register" role="tabpanel"
+                                 aria-labelledby="nav-register-tab">
+                                <p class="card-text">
+                                    By registering, you agree that all curation submissions will be
+                                    licensed under the <a href="https://creativecommons.org/publicdomain/zero/1.0/">
+                                    Creative Commons Zero (CC0)</a> license and will be associated with your ORCID
+                                    identifier. Full terms and conditions can be found <a href="#">here</a>.
+                                </p>
+                                <form class="form overlay-form" id="overlay-form-register"
+                                      onsubmit="return false;">
+                                    <input type="hidden" name="type" value="register">
+                                    <div class="form-group">
+                                        <label class="form-control-label" for="registration-email">Email</label>
+                                        <input id="registration-email" name="email"
+                                               type='email' class="form-control"
+                                               placeholder="your@email.com">
+                                        <small class="form-text text-muted">
+                                            Your email address is only used for identifying users during login and
+                                            is not shared publicly.
+                                        </small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-control-label" for="registration-orcid">
+                                            ORCID Identifier
+                                        </label>
+                                        <input id="registration-orcid" name="orcid"
+                                               type='text' class="form-control"
+                                               placeholder="XXXX-XXXX-XXXX-XXXX">
+                                        <small class="form-text text-muted">
+                                            The ORCID identifier is an unambiguous way of identifying a researcher that
+                                            we use when distributing curation data. Registration takes seconds at
+                                            <a href="https://orcid.org">https://orcid.org</a>.
+                                        </small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-control-label" for="registration-password">Password</label>
+                                        <input id="registration-password" name="password0"
+                                               type='password' class="form-control"
+                                               placeholder="password">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-control-label" for="registration-password-confirmation">
+                                            Confirm Password
+                                        </label>
+                                        <input id="registration-password-confirmation" name="password1" type='password'
+                                               class="form-control" placeholder="repeat password">
+                                    </div>
+                                    <button class="btn btn-primary" type='submit'
+                                            id="overlay-button-register">
+                                        Register
+                                    </button>
+                                </form>
 
-                    if (this.type.value === 'register') {
-
-                        // Check the password
-                        if (!this.email.value || !this.orcid.value || !this.password0.value || !this.password1.value) {
-                            report_login_result("Missing email, ORCID, or one of the passwords.");
-                            return false;
-                        } else if (this.password0.value !== this.password1.value) {
-                            clear(this, false);
-                            this.password.value = null;
-                            report_login_result("Passwords don't match.");
-                            return false;
-                        } else if (this.password0.value.length < 8) {
-                            clear(this, false);
-                            report_login_result("Password too short.");
-                            return false;
-                        }
-
-                        this.password = this.password0;
-                    } else {
-                        // Check for an email, if none, reject the form (do nothing)
-                        if (!this.email.value || !this.password.value) {
-                            report_login_result("Missing password or email.");
-                            return false;
-                        }
-                    }
-
-                    post_auth(
-                        this.type.value,
-                        {'email': this.email.value, 'password': this.password.value},
-                        (resp_json, resp) => {
-                            console.log(resp_json);
-
-                            if (resp.status !== 200) {
-                                let msg = resp_json.message;
-                                if (!msg)
-                                    msg = "Unknown Reason";
-                                report_login_result(`Could not ${this.type.value}: ${msg}`);
-
-                                // Clear the password field
-                                clear(this, false);
-
-                                if (failure_callback)
-                                    failure_callback(this.type.value, resp_json);
-                                return false;
-                            }
-
-                            // Clear the form
-                            clear(this);
-
-                            // If this was a successful register, reset the form.
-                            if (this.type.value === 'register')
-                                reset_tabs();
-
-                            // Credentials should now be stored in a cookie if this was a login.
-                            report_login_result(`Successful ${this.type.value}`);
-
-                            // Hide the overlay again.
-                            overlay.style.display = "none";
-
-                            // Call the success callback function.
-                            if (success_callback)
-                                success_callback(this.type.value, resp_json);
-                            return false;
-
-                        }
-                    );
-                } catch (e) {
-                    console.log(`Error while trying to authenticate: ${e}`)
-                }
-                return false;
-            };
-
-            // Popup the overlay
-            overlay.style.display = "block";
-            return false;
-        });
-        return false;
-    }
-
-    function logout(callback) {
-        console.log(`Sending request to logout`);
-        post_auth('logout', {}, () => {return callback()});
-    }
-</script>
-<div id="overlay">
-    <button class="btn btn-danger" id="x-out">x</button>
-    <div id="overlay-form-div">
-        <div style="padding: 1em; text-align: center; margin-left: auto; margin-right: auto;">
-            <img src="https://bigmech.s3.amazonaws.com/indra-db/indralab_bare_logo.png" width="150em">
-            <h1>INDRA Labs</h1>
-        </div>
-        <div class="container nav-container">
-            <nav>
-                <div class="nav nav-tabs" id="nav-tab" role="tablist">
-                    <a class="nav-item nav-link active show"
-                       id="nav-login-tab"
-                       data-toggle="tab" href="#nav-login" role="tab"
-                       aria-controls="nav-login"
-                       aria-selected="true">Login</a>
-                    <a class="nav-item nav-link" id="nav-register-tab"
-                       data-toggle="tab" href="#nav-register" role="tab"
-                       aria-controls="nav-register"
-                       aria-selected="false">Register</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <small id="overlay-message"></small>
+                    </div>
                 </div>
-            </nav>
-        </div>
-        <div class="tab-content" id="overlay-all-forms">
-            <div class="tab-pane auth-tab fade active show" id="nav-login"
-                 role="tabpanel" aria-labelledby="nav-login-tab">
-                <form class="form overlay-form" id="overlay-form-login"
-                      onsubmit="return false;">
-                    <input type="hidden" name="type" value="login">
-                    <label for="login-email">Email</label>
-                    <input id="login-email" name="email"
-                                 type='email' class="form-control"
-                                 placeholder="your@email.com">
-                    <label for="login-password">Password</label>
-                    <input id="login-password" name="password"
-                                    type='password' class="form-control"
-                                    placeholder="password">
-                    <button class="btn btn-primary" type='submit'
-                            id="overlay-button-login">
-                        Login
-                    </button>
-                </form>
-            </div>
-            <div class="tab-pane auth-tab fade" id="nav-register" role="tabpanel"
-                 aria-labelledby="nav-register-tab">
-                <form class="form overlay-form" id="overlay-form-register"
-                      onsubmit="return false;">
-                    <input type="hidden" name="type" value="register">
-                    <label for="registration-email">Email</label>
-                    <input id="registration-email" name="email"
-                                 type='email' class="form-control"
-                                 placeholder="your@email.com">
-                    <label for="registration-orcid">ORCID</label>
-                    <input id="registration-orcid" name="orcid"
-                           type='text' class="form-control"
-                           placeholder="XXXX-XXXX-XXXX-XXXX">
-                    <label for="registration-password">Password</label>
-                    <input id="registration-password" name="password0"
-                                    type='password' class="form-control"
-                                    placeholder="password">
-                    <input id="registration-password-confirmation" name="password1" type='password'
-                           class="form-control" placeholder="repeat password">
-                    <button class="btn btn-primary" type='submit'
-                            id="overlay-button-register">
-                        Register
-                    </button>
-                </form>
-
             </div>
         </div>
-        <small id="overlay-message"></small>
     </div>
-</div>
 {%- endmacro %}
 
