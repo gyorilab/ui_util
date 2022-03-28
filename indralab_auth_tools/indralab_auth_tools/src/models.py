@@ -1,22 +1,16 @@
-import logging
 import os
+import scrypt
+import logging
 from base64 import b64encode
 from datetime import datetime
 from time import sleep
 from typing import Optional
 
-import scrypt
-from sqlalchemy import (
-    Boolean,
-    Column,
-    DateTime,
-    ForeignKey,
-    Integer,
-    LargeBinary,
-    String,
-)
+from sqlalchemy.orm import relationship, backref, sessionmaker
+from sqlalchemy import Boolean, DateTime, Column, Integer, \
+    String, ForeignKey, LargeBinary
 from sqlalchemy.dialects.postgresql import JSON, JSONB
-from sqlalchemy.orm import backref, relationship, sessionmaker
+
 
 from indralab_auth_tools.src.database import Base, engine
 
@@ -126,16 +120,17 @@ class User(Base, _AuthMixin):
     roles = relationship('Role',
                          secondary='roles_users',
                          backref=backref('users', lazy='dynamic'))
+    orcid = Column(String(19), nullable=True)
 
     _label = 'email'
     _identity_cols = {'id', 'email'}
 
     @classmethod
     def new_user(cls, email, password, orcid: Optional[str] = None, **kwargs):
-        # FIXME use ORCID in creation
         return cls(
             email=email.lower(),
             password=hash_password(password),
+            orcid=orcid,
             **kwargs,
         )
 

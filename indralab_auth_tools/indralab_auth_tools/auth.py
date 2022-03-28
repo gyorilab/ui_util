@@ -9,11 +9,13 @@ from flask_jwt_extended import jwt_optional, get_jwt_identity, \
     create_access_token, set_access_cookies, unset_jwt_cookies, JWTManager
 
 from flask import Blueprint, jsonify, request, redirect
+from sqlalchemy.exc import IntegrityError
 
 from indralab_auth_tools.log import is_log_running, set_user_in_log, \
     set_role_in_log
 from indralab_auth_tools.src.models import User, Role, BadIdentity, \
-    IntegrityError, start_fresh, AuthLog, UserDatabaseError
+    start_fresh, AuthLog, UserDatabaseError
+
 
 auth = Blueprint('auth', __name__, template_folder='templates')
 
@@ -101,7 +103,7 @@ def register(auth_details, user_identity):
                if field not in data]
     if missing:
         auth_details['missing'] = missing
-        return jsonify({"message": "No email or password provided"}), 400
+        return jsonify({"message": "No email, orcid, or password provided"}), 400
 
     auth_details['new_email'] = data['email']
 
