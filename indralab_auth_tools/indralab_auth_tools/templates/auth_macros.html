@@ -9,24 +9,9 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background-color: rgba(0, 0, 0, 0.5);
+            background-color: rgba(0, 0, 0, 0.4);
             z-index: 2048;
             cursor: pointer;
-        }
-
-        #x-out {
-            border-radius: 25px;
-            height: 50px;
-            width: 50px;
-            position: absolute;
-            top: 30px;
-            right: 30px;
-        }
-
-        #overlay-message {
-            font-size: 9pt;
-            color: #803030;
-            max-width: 10em;
         }
     </style>
     <script>
@@ -215,12 +200,16 @@
         }
     </script>
     <div id="overlay">
-        <button class="btn btn-danger" id="x-out">x</button>
+
         <div class="row justify-content-center" style="margin-top: 5em;">
             <div class="col-5">
                 <div class="card">
                     <div class="card-header">
-                        <h1>
+                        <button data-dismiss="alert" data-target="#closeablecard" type="button" class="close"
+                                aria-label="Close" id="x-out">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                        <h1 class="card-title">
                             <img src="https://bigmech.s3.amazonaws.com/indra-db/indralab_bare_logo.png"
                                  style="max-height: 1em;">
                             INDRA Labs
