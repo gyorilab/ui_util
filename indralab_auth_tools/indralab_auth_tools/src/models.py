@@ -8,7 +8,7 @@ from typing import Optional
 
 from sqlalchemy.orm import relationship, backref, sessionmaker
 from sqlalchemy import Boolean, DateTime, Column, Integer, \
-    String, ForeignKey, LargeBinary
+                       String, ForeignKey, LargeBinary
 from sqlalchemy.dialects.postgresql import JSON, JSONB
 
 
