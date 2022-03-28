@@ -125,7 +125,14 @@ class User(Base, _AuthMixin):
     _identity_cols = {'id', 'email'}
 
     @classmethod
-    def new_user(cls, email, password, orcid: Optional[str] = None, **kwargs):
+    def new_user(
+        cls,
+        email: str,
+        password: str,
+        orcid: str,
+        **kwargs,
+    ) -> "User":
+        """Create a user with a lowerased email and hashed password."""
         return cls(
             email=email.lower(),
             password=hash_password(password),
