@@ -75,7 +75,7 @@
         on_complete(resp_json, resp);
     }
 
-    function clear(item, email=true, password=true) {
+    function clear(item, email=true, password=true, orcid=true) {
 
         // Clear the password
         if (password) {
@@ -91,6 +91,11 @@
         // Clear the email
         if (email) {
             item.email.value = null;
+        }
+
+        // Clear the ORCID
+        if (orcid) {
+            item.orcid.value = null;
         }
     }
 
@@ -147,8 +152,8 @@
                     if (this.type.value === 'register') {
 
                         // Check the password
-                        if (!this.email.value || !this.password0.value || !this.password1.value) {
-                            report_login_result("Missing email or one of the passwords.");
+                        if (!this.email.value || !this.orcid.value || !this.password0.value || !this.password1.value) {
+                            report_login_result("Missing email, ORCID, or one of the passwords.");
                             return false;
                         } else if (this.password0.value !== this.password1.value) {
                             clear(this, false);

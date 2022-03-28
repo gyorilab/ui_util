@@ -97,7 +97,7 @@ def register(auth_details, user_identity):
         pass
 
     data = request.json
-    missing = [field for field in ['email', 'password']
+    missing = [field for field in ['email', 'password', 'orcid']
                if field not in data]
     if missing:
         auth_details['missing'] = missing
@@ -107,7 +107,8 @@ def register(auth_details, user_identity):
 
     new_user = User.new_user(
         email=data['email'],
-        password=data['password']
+        password=data['password'],
+        orcid=data['orcid'],
     )
 
     try:

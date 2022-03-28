@@ -1,20 +1,24 @@
-import os
-import scrypt
 import logging
+import os
 from base64 import b64encode
 from datetime import datetime
 from time import sleep
+from typing import Optional
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import relationship, backref, sessionmaker
-from sqlalchemy import Boolean, DateTime, Column, Integer, \
-                       String, ForeignKey, LargeBinary
+import scrypt
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    String,
+)
 from sqlalchemy.dialects.postgresql import JSON, JSONB
+from sqlalchemy.orm import backref, relationship, sessionmaker
 
-from sqlalchemy.exc import IntegrityError
-
-
-from indralab_auth_tools.src.database import Base, engine 
+from indralab_auth_tools.src.database import Base, engine
 
 logger = logging.getLogger(__name__)
 
@@ -127,9 +131,13 @@ class User(Base, _AuthMixin):
     _identity_cols = {'id', 'email'}
 
     @classmethod
-    def new_user(cls, email, password, **kwargs):
-        return cls(email=email.lower(), password=hash_password(password),
-                   **kwargs)
+    def new_user(cls, email, password, orcid: Optional[str] = None, **kwargs):
+        # FIXME use ORCID in creation
+        return cls(
+            email=email.lower(),
+            password=hash_password(password),
+            **kwargs,
+        )
 
     @classmethod
     def get_by_email(cls, email, verify=None):
@@ -228,4 +236,3 @@ def verify_password(hashed_password, guessed_password, maxtime=0.5):
     except scrypt.error:
         sleep(1)
         return False
-
