@@ -171,7 +171,7 @@ def login(auth_details, user_identity):
 
     access_token = create_access_token(identity=current_user.identity())
     logger.info("Produced new access token.")
-    resp = jsonify({'login': True, 'user_email': current_user.email})
+    resp = jsonify({'login': True, 'user_email': current_user.email, 'orcid': current_user.orcid})
     set_access_cookies(resp, access_token)
     return resp
 
