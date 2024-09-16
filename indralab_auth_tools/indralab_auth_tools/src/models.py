@@ -4,17 +4,14 @@ import logging
 from base64 import b64encode
 from datetime import datetime
 from time import sleep
+from typing import Optional
 
-from sqlalchemy import create_engine
 from sqlalchemy.orm import relationship, backref, sessionmaker
 from sqlalchemy import Boolean, DateTime, Column, Integer, \
                        String, ForeignKey, LargeBinary
 from sqlalchemy.dialects.postgresql import JSON, JSONB
 
-from sqlalchemy.exc import IntegrityError
-
-
-from indralab_auth_tools.src.database import Base, engine 
+from indralab_auth_tools.src.database import Base, engine
 
 logger = logging.getLogger(__name__)
 
@@ -122,14 +119,26 @@ class User(Base, _AuthMixin):
     roles = relationship('Role',
                          secondary='roles_users',
                          backref=backref('users', lazy='dynamic'))
+    orcid = Column(String(19), nullable=True)
 
     _label = 'email'
     _identity_cols = {'id', 'email'}
 
     @classmethod
-    def new_user(cls, email, password, **kwargs):
-        return cls(email=email.lower(), password=hash_password(password),
-                   **kwargs)
+    def new_user(
+        cls,
+        email: str,
+        password: str,
+        orcid: str,
+        **kwargs,
+    ) -> "User":
+        """Create a user with a lowerased email and hashed password."""
+        return cls(
+            email=email.lower(),
+            password=hash_password(password),
+            orcid=orcid,
+            **kwargs,
+        )
 
     @classmethod
     def get_by_email(cls, email, verify=None):
@@ -228,4 +237,3 @@ def verify_password(hashed_password, guessed_password, maxtime=0.5):
     except scrypt.error:
         sleep(1)
         return False
-

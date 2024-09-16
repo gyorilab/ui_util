@@ -9,11 +9,13 @@ from flask_jwt_extended import jwt_required, get_jwt_identity, \
     create_access_token, set_access_cookies, unset_jwt_cookies, JWTManager
 
 from flask import Blueprint, jsonify, request, redirect
+from sqlalchemy.exc import IntegrityError
 
 from indralab_auth_tools.log import is_log_running, set_user_in_log, \
     set_role_in_log
 from indralab_auth_tools.src.models import User, Role, BadIdentity, \
-    IntegrityError, start_fresh, AuthLog, UserDatabaseError
+    start_fresh, AuthLog, UserDatabaseError
+
 
 auth = Blueprint('auth', __name__, template_folder='templates')
 
@@ -104,17 +106,18 @@ def register(auth_details, user_identity):
         pass
 
     data = request.json
-    missing = [field for field in ['email', 'password']
+    missing = [field for field in ['email', 'password', 'orcid']
                if field not in data]
     if missing:
         auth_details['missing'] = missing
-        return jsonify({"message": "No email or password provided"}), 400
+        return jsonify({"message": "No email, orcid, or password provided"}), 400
 
     auth_details['new_email'] = data['email']
 
     new_user = User.new_user(
         email=data['email'],
-        password=data['password']
+        password=data['password'],
+        orcid=data['orcid'],
     )
 
     try:
@@ -175,7 +178,7 @@ def login(auth_details, user_identity):
 
     access_token = create_access_token(identity=current_user.identity())
     logger.info("Produced new access token.")
-    resp = jsonify({'login': True, 'user_email': current_user.email})
+    resp = jsonify({'login': True, 'user_email': current_user.email, 'orcid': current_user.orcid})
     set_access_cookies(resp, access_token)
     return resp
 
