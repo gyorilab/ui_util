@@ -13,7 +13,13 @@ try:
     # This is for handling empty strings set as the environmental variable
     if not db_config:
         raise KeyError()
-    engine = create_engine(db_config, convert_unicode=True)
+    engine = create_engine(
+        db_config,
+        convert_unicode=True,
+        pool_pre_ping=True,
+        pool_size=10,
+        pool_recycle=3600,
+    )
     db_session = scoped_session(
         sessionmaker(autocommit=False, autoflush=False, bind=engine)
     )
