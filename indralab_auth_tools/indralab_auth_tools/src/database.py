@@ -13,6 +13,10 @@ try:
     # This is for handling empty strings set as the environmental variable
     if not db_config:
         raise KeyError()
+    # See
+    # https://docs.sqlalchemy.org/en/14/core/pooling.html#disconnect-handling-pessimistic
+    # and
+    # https://docs.sqlalchemy.org/en/14/core/engines.html#sqlalchemy.create_engine
     engine = create_engine(
         db_config,
         convert_unicode=True,
