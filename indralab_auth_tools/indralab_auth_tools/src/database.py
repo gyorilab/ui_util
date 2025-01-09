@@ -22,7 +22,7 @@ try:
         convert_unicode=True,
         pool_pre_ping=True,
         pool_size=10,
-        pool_recycle=3600,
+        pool_recycle=300,
     )
     db_session = scoped_session(
         sessionmaker(autocommit=False, autoflush=False, bind=engine)
