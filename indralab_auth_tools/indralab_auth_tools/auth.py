@@ -223,6 +223,7 @@ def resolve_auth(query, failure_reason=None):
     Returns a tuple with the current user, if applicable, and a list of
     associated roles.
     """
+    start_fresh()
     api_key = query.pop('api_key', None)
     logger.info("Got api key %s" % api_key)
     if api_key:
