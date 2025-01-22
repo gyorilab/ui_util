@@ -44,7 +44,7 @@ def config_auth(app):
     jwt = JWTManager(app)
 
     @jwt.expired_token_loader
-    def handle_expired_token(token):
+    def handle_expired_token(jwt_header, jwt_payload):
         resp = redirect(request.url)
         unset_jwt_cookies(resp)
         return resp
