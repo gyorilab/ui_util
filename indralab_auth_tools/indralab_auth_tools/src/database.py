@@ -21,8 +21,9 @@ try:
         db_config,
         convert_unicode=True,
         pool_pre_ping=True,
-        pool_size=10,
-        pool_recycle=300,
+        pool_size=30,
+        max_overflow=20,
+        pool_recycle=300,  # 5 minutes
     )
     db_session = scoped_session(
         sessionmaker(autocommit=False, autoflush=False, bind=engine)
