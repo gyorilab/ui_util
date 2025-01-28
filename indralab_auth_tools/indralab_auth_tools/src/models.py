@@ -5,21 +5,14 @@ from base64 import b64encode
 from datetime import datetime
 from time import sleep
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import relationship, backref, sessionmaker
+from sqlalchemy.orm import relationship, backref
 from sqlalchemy import Boolean, DateTime, Column, Integer, \
                        String, ForeignKey, LargeBinary
 from sqlalchemy.dialects.postgresql import JSON, JSONB
-
-from sqlalchemy.exc import IntegrityError
-
-
-from indralab_auth_tools.src.database import Base, engine 
+from indralab_auth_tools.src.database import Base, db_session
 
 logger = logging.getLogger(__name__)
 
-DBSession = sessionmaker(bind=engine)
-session = DBSession()
 
 
 class UserDatabaseError(Exception):
@@ -30,21 +23,26 @@ class BadIdentity(UserDatabaseError):
     pass
 
 
-def start_fresh():
-    session.rollback()
-
 
 class _AuthMixin(object):
     _label = NotImplemented
 
-    def save(self):
-        if not self.id:
-            session.add(self)
-        try:
-            session.commit()
-        except Exception as e:
-            session.rollback()
-            raise e
+    def save(self, session=None):
+        """Save the object to the database."""
+        if session is None:
+            with db_session().begin() as session:
+                self._save(session)
+        else:
+            self._save(session)
+
+    def _save(self, session):
+            if not self.id:
+                session.add(self)
+            try:
+                session.commit()
+            except Exception as e:
+                session.rollback()
+                raise e
 
     def __str__(self):
         if isinstance(self._label, list) or isinstance(self._label, set) \
@@ -78,33 +76,33 @@ class Role(Base, _AuthMixin):
     @classmethod
     def get_by_name(cls, name, *args):
         """Look for a role by a given name."""
+        with db_session().begin() as session:
 
-        if len(args) > 1:
-            raise ValueError("Expected at most 1 extra argument.")
+            if len(args) > 1:
+                raise ValueError("Expected at most 1 extra argument.")
 
-        role = cls.query.filter_by(name=name).first()
-        if not role:
-            if not args:
-                raise UserDatabaseError("Role {name} does not exist."
-                                        .format(name=name))
-            return args[0]
-        return role
+            role = session.query(cls).filter_by(name=name).first()
+            if not role:
+                if not args:
+                    raise UserDatabaseError(f"Role {name} does not exist.")
+                return args[0]
+            return role
 
     @classmethod
     def get_by_api_key(cls, api_key):
         """Get a role from its API Key."""
+        with db_session().begin() as session:
+            # Look for the role.
+            role = session.query(cls).filter(cls.api_key == api_key).first()
+            if not role:
+                raise UserDatabaseError("Api Key {api_key} is not valid."
+                                        .format(api_key=api_key))
 
-        # Look for the role.
-        role = cls.query.filter_by(api_key=api_key).first()
-        if not role:
-            raise UserDatabaseError("Api Key {api_key} is not valid."
-                                    .format(api_key=api_key))
+            # Count the number of times this role has been accessed by API key.
+            role.api_access_count = role.api_access_count + 1
+            role.save()
 
-        # Count the number of times this role has been accessed by API key.
-        role.api_access_count = role.api_access_count + 1
-        role.save()
-
-        return role
+            return role
 
 
 class User(Base, _AuthMixin):
@@ -133,22 +131,24 @@ class User(Base, _AuthMixin):
 
     @classmethod
     def get_by_email(cls, email, verify=None):
-        user = session.query(cls).filter(cls.email == email.lower()).first()
-        if user is None:
-            print("User %s not found." % email.lower())
-            return None
-
-        if verify:
-            if verify_password(user.password, verify):
-                user.last_login_at = datetime.now()
-                user.login_count += 1
-                user.save()
-                return user
-            else:
-                print("User password failed.")
+        """Get a user by email."""
+        with db_session().begin() as session:
+            user = session.query(cls).filter(cls.email == email.lower()).first()
+            if user is None:
+                print("User %s not found." % email.lower())
                 return None
 
-        return user
+            if verify:
+                if verify_password(user.password, verify):
+                    user.last_login_at = datetime.now()
+                    user.login_count += 1
+                    user.save()
+                    return user
+                else:
+                    print("User password failed.")
+                    return None
+
+            return user
 
     @classmethod
     def get_by_identity(cls, identity):
@@ -157,7 +157,8 @@ class User(Base, _AuthMixin):
             raise BadIdentity("'{identity}' is not an identity."
                               .format(identity=identity))
 
-        user = cls.query.get(identity['id'])
+        with db_session().begin() as session:
+            user = session.query(cls).get(identity['id'])
         if not user:
             raise BadIdentity("User {} does not exist.".format(identity['id']))
         if user.email.lower() != identity['email'].lower():
@@ -173,8 +174,9 @@ class User(Base, _AuthMixin):
         """Give this user a role."""
         role = Role.get_by_name(role_name)
         new_link = RolesUsers(user_id=self.id, role_id=role.id)
-        session.add(new_link)
-        session.commit()
+        with db_session.begin() as session:
+            session.add(new_link)
+            session.commit()
         return
 
     def identity(self):
