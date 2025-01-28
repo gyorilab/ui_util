@@ -5,7 +5,7 @@ from base64 import b64encode
 from datetime import datetime
 from time import sleep
 
-from sqlalchemy.orm import relationship, backref
+from sqlalchemy.orm import relationship, backref, Session
 from sqlalchemy import Boolean, DateTime, Column, Integer, \
                        String, ForeignKey, LargeBinary
 from sqlalchemy.dialects.postgresql import JSON, JSONB
@@ -27,15 +27,18 @@ class BadIdentity(UserDatabaseError):
 class _AuthMixin(object):
     _label = NotImplemented
 
-    def save(self, session=None):
+    def save(self, session: Session = None):
         """Save the object to the database."""
+        # Pass the session to the save method to avoid creating a new
+        # session and transaction inside the save method when it's run from inside an
+        # already started session context block.
         if session is None:
-            with db_session().begin() as session:
+            with db_session() as session:
                 self._save(session)
         else:
             self._save(session)
 
-    def _save(self, session):
+    def _save(self, session: Session):
             if not self.id:
                 session.add(self)
             try:
@@ -76,7 +79,7 @@ class Role(Base, _AuthMixin):
     @classmethod
     def get_by_name(cls, name, *args):
         """Look for a role by a given name."""
-        with db_session().begin() as session:
+        with db_session() as session:
 
             if len(args) > 1:
                 raise ValueError("Expected at most 1 extra argument.")
@@ -91,7 +94,7 @@ class Role(Base, _AuthMixin):
     @classmethod
     def get_by_api_key(cls, api_key):
         """Get a role from its API Key."""
-        with db_session().begin() as session:
+        with db_session() as session:
             # Look for the role.
             role = session.query(cls).filter(cls.api_key == api_key).first()
             if not role:
@@ -100,7 +103,7 @@ class Role(Base, _AuthMixin):
 
             # Count the number of times this role has been accessed by API key.
             role.api_access_count = role.api_access_count + 1
-            role.save()
+            role.save(session=session)
 
             return role
 
@@ -132,7 +135,7 @@ class User(Base, _AuthMixin):
     @classmethod
     def get_by_email(cls, email, verify=None):
         """Get a user by email."""
-        with db_session().begin() as session:
+        with db_session() as session:
             user = session.query(cls).filter(cls.email == email.lower()).first()
             if user is None:
                 print("User %s not found." % email.lower())
@@ -142,7 +145,7 @@ class User(Base, _AuthMixin):
                 if verify_password(user.password, verify):
                     user.last_login_at = datetime.now()
                     user.login_count += 1
-                    user.save()
+                    user.save(session=session)
                     return user
                 else:
                     print("User password failed.")
@@ -157,7 +160,7 @@ class User(Base, _AuthMixin):
             raise BadIdentity("'{identity}' is not an identity."
                               .format(identity=identity))
 
-        with db_session().begin() as session:
+        with db_session() as session:
             user = session.query(cls).get(identity['id'])
         if not user:
             raise BadIdentity("User {} does not exist.".format(identity['id']))
@@ -174,7 +177,7 @@ class User(Base, _AuthMixin):
         """Give this user a role."""
         role = Role.get_by_name(role_name)
         new_link = RolesUsers(user_id=self.id, role_id=role.id)
-        with db_session.begin() as session:
+        with db_session() as session:
             session.add(new_link)
             session.commit()
         return
