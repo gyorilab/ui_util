@@ -25,11 +25,11 @@ try:
         max_overflow=20,
         pool_recycle=300,  # 5 minutes
     )
-    db_session = scoped_session(
-        sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    )
+    # Use a session factory instead of a session object and then create a
+    # session object from the factory as needed. See:
+    # https://docs.sqlalchemy.org/en/14/orm/session_basics.html#using-a-sessionmaker
+    db_session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     Base = declarative_base()
-    Base.query = db_session.query_property()
 except KeyError:
     engine = None
 
