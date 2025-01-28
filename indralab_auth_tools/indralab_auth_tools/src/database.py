@@ -1,7 +1,7 @@
 import logging
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 
 from indralab_auth_tools.conf import get_indra_conf
@@ -25,8 +25,8 @@ try:
         max_overflow=20,
         pool_recycle=300,  # 5 minutes
     )
-    # Use a session factory instead of a session object and then create a
-    # session object from the factory as needed. See:
+    # Use a session factory and create a session object from the factory as needed.
+    # See:
     # https://docs.sqlalchemy.org/en/14/orm/session_basics.html#using-a-sessionmaker
     db_session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     Base = declarative_base()
