@@ -89,6 +89,9 @@ class Role(Base, _AuthMixin):
                 if not args:
                     raise UserDatabaseError(f"Role {name} does not exist.")
                 return args[0]
+
+            # Load the attributes before returning it out of the session.
+            session.refresh(role)
             return role
 
     @classmethod
@@ -104,6 +107,16 @@ class Role(Base, _AuthMixin):
             # Count the number of times this role has been accessed by API key.
             role.api_access_count = role.api_access_count + 1
             role.save(session=session)
+
+            # Now fully load the role before returning it.
+            # See:
+            # https://docs.sqlalchemy.org/en/14/orm/session_state_management.html#refreshing-expiring
+            # and
+            # https://docs.sqlalchemy.org/en/14/orm/session_api.html#sqlalchemy.orm.Session.refresh
+            # Note, this does not load
+            # any relationships, e.g. 'users'. For that, see:
+            # https://docs.sqlalchemy.org/en/14/orm/loading_relationships.html
+            session.refresh(role)
 
             return role
 
@@ -146,11 +159,14 @@ class User(Base, _AuthMixin):
                     user.last_login_at = datetime.now()
                     user.login_count += 1
                     user.save(session=session)
+                    # Load the attributes before returning it out of the session.
+                    session.refresh(user)
                     return user
                 else:
                     print("User password failed.")
                     return None
-
+            # Load the attributes before returning it out of the session.
+            session.refresh(user)
             return user
 
     @classmethod
@@ -167,6 +183,8 @@ class User(Base, _AuthMixin):
         if user.email.lower() != identity['email'].lower():
             raise BadIdentity("Invalid identity, email on database does "
                               "not match email given.")
+        # Load the attributes before returning it out of the session.
+        session.refresh(user)
         return user
 
     def reset_password(self, new_password):
