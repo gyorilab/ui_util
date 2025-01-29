@@ -90,7 +90,7 @@ class Role(Base, _AuthMixin):
                     raise UserDatabaseError(f"Role {name} does not exist.")
                 return args[0]
 
-            # Load the attributes before returning it out of the session.
+            # Load the attributes before returning out of the session.
             session.refresh(role)
             return role
 
@@ -159,13 +159,13 @@ class User(Base, _AuthMixin):
                     user.last_login_at = datetime.now()
                     user.login_count += 1
                     user.save(session=session)
-                    # Load the attributes before returning it out of the session.
+                    # Load the attributes before returning out of the session.
                     session.refresh(user)
                     return user
                 else:
                     print("User password failed.")
                     return None
-            # Load the attributes before returning it out of the session.
+            # Load the attributes before returning out of the session.
             session.refresh(user)
             return user
 
@@ -178,14 +178,14 @@ class User(Base, _AuthMixin):
 
         with db_session() as session:
             user = session.query(cls).get(identity['id'])
-        if not user:
-            raise BadIdentity("User {} does not exist.".format(identity['id']))
-        if user.email.lower() != identity['email'].lower():
-            raise BadIdentity("Invalid identity, email on database does "
-                              "not match email given.")
-        # Load the attributes before returning it out of the session.
-        session.refresh(user)
-        return user
+            if not user:
+                raise BadIdentity("User {} does not exist.".format(identity['id']))
+            if user.email.lower() != identity['email'].lower():
+                raise BadIdentity("Invalid identity, email on database does "
+                                  "not match email given.")
+            # Load the attributes before returning out of the session.
+            session.refresh(user)
+            return user
 
     def reset_password(self, new_password):
         self.password = hash_password(new_password)
