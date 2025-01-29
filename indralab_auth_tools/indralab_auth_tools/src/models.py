@@ -135,7 +135,8 @@ class User(Base, _AuthMixin):
     confirmed_at = Column(DateTime())
     roles = relationship('Role',
                          secondary='roles_users',
-                         backref=backref('users', lazy='dynamic'))
+                         backref=backref('users', lazy='joined'),
+                         lazy='joined')
 
     _label = 'email'
     _identity_cols = {'id', 'email'}
@@ -229,7 +230,7 @@ class QueryLog(Base, _AuthMixin):
     result_status = Column(Integer)
     user_id = Column(Integer, ForeignKey("user.id"))
     api_key_role_id = Column(Integer, ForeignKey("role.id"))
-    user = relationship(User)
+    user = relationship(User, lazy='joined')
     user_ip = Column(String(64))
     user_agent = Column(String)
     url = Column(String)
