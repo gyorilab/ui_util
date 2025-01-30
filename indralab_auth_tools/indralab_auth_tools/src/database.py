@@ -82,9 +82,9 @@ def monitor_database_connection(interval=60):
         time.sleep(interval)
         try:
             if engine is None:
-            with engine.connect() as conn:
-                conn.execute("SELECT 1")
                 raise RuntimeError("Database engine is None.")
+            with db_session() as session:
+                session.execute("SELECT 1")
         except Exception as e:
             logger.error(f"Database connection lost: {e}")
             reset_database_connection()
