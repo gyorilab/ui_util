@@ -40,6 +40,7 @@ try:
     Base = declarative_base()
 except KeyError:
     engine = None
+    db_session = None
 
     class Base(object):
         pass
