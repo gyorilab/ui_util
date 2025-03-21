@@ -2,7 +2,7 @@ import logging
 from functools import wraps
 from datetime import datetime
 
-from flask import request, Response
+from flask import request
 from werkzeug.exceptions import HTTPException
 
 from indralab_auth_tools.src.models import QueryLog

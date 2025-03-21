@@ -5,21 +5,14 @@ from base64 import b64encode
 from datetime import datetime
 from time import sleep
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import relationship, backref, sessionmaker
+from sqlalchemy.orm import relationship, backref, Session
 from sqlalchemy import Boolean, DateTime, Column, Integer, \
                        String, ForeignKey, LargeBinary
 from sqlalchemy.dialects.postgresql import JSON, JSONB
-
-from sqlalchemy.exc import IntegrityError
-
-
-from indralab_auth_tools.src.database import Base, engine 
+from indralab_auth_tools.src.database import Base, db_session
 
 logger = logging.getLogger(__name__)
 
-DBSession = sessionmaker(bind=engine)
-session = DBSession()
 
 
 class UserDatabaseError(Exception):
@@ -30,21 +23,29 @@ class BadIdentity(UserDatabaseError):
     pass
 
 
-def start_fresh():
-    session.rollback()
-
 
 class _AuthMixin(object):
     _label = NotImplemented
 
-    def save(self):
-        if not self.id:
-            session.add(self)
-        try:
-            session.commit()
-        except Exception as e:
-            session.rollback()
-            raise e
+    def save(self, session: Session = None):
+        """Save the object to the database."""
+        # Pass the session to the save method to avoid creating a new
+        # session and transaction inside the save method when it's run from inside an
+        # already started session context block.
+        if session is None:
+            with db_session() as session:
+                self._save(session)
+        else:
+            self._save(session)
+
+    def _save(self, session: Session):
+            if not self.id:
+                session.add(self)
+            try:
+                session.commit()
+            except Exception as e:
+                session.rollback()
+                raise e
 
     def __str__(self):
         if isinstance(self._label, list) or isinstance(self._label, set) \
@@ -78,33 +79,46 @@ class Role(Base, _AuthMixin):
     @classmethod
     def get_by_name(cls, name, *args):
         """Look for a role by a given name."""
+        with db_session() as session:
 
-        if len(args) > 1:
-            raise ValueError("Expected at most 1 extra argument.")
+            if len(args) > 1:
+                raise ValueError("Expected at most 1 extra argument.")
 
-        role = cls.query.filter_by(name=name).first()
-        if not role:
-            if not args:
-                raise UserDatabaseError("Role {name} does not exist."
-                                        .format(name=name))
-            return args[0]
-        return role
+            role = session.query(cls).filter_by(name=name).first()
+            if not role:
+                if not args:
+                    raise UserDatabaseError(f"Role {name} does not exist.")
+                return args[0]
+
+            # Load the attributes before returning out of the session.
+            session.refresh(role)
+            return role
 
     @classmethod
     def get_by_api_key(cls, api_key):
         """Get a role from its API Key."""
+        with db_session() as session:
+            # Look for the role.
+            role = session.query(cls).filter(cls.api_key == api_key).first()
+            if not role:
+                raise UserDatabaseError("Api Key {api_key} is not valid."
+                                        .format(api_key=api_key))
 
-        # Look for the role.
-        role = cls.query.filter_by(api_key=api_key).first()
-        if not role:
-            raise UserDatabaseError("Api Key {api_key} is not valid."
-                                    .format(api_key=api_key))
+            # Count the number of times this role has been accessed by API key.
+            role.api_access_count = role.api_access_count + 1
+            role.save(session=session)
 
-        # Count the number of times this role has been accessed by API key.
-        role.api_access_count = role.api_access_count + 1
-        role.save()
+            # Now fully load the role before returning it.
+            # See:
+            # https://docs.sqlalchemy.org/en/14/orm/session_state_management.html#refreshing-expiring
+            # and
+            # https://docs.sqlalchemy.org/en/14/orm/session_api.html#sqlalchemy.orm.Session.refresh
+            # Note, this does not load
+            # any relationships, e.g. 'users'. For that, see:
+            # https://docs.sqlalchemy.org/en/14/orm/loading_relationships.html
+            session.refresh(role)
 
-        return role
+            return role
 
 
 class User(Base, _AuthMixin):
@@ -121,7 +135,8 @@ class User(Base, _AuthMixin):
     confirmed_at = Column(DateTime())
     roles = relationship('Role',
                          secondary='roles_users',
-                         backref=backref('users', lazy='dynamic'))
+                         backref=backref('users', lazy='joined'),
+                         lazy='joined')
 
     _label = 'email'
     _identity_cols = {'id', 'email'}
@@ -133,22 +148,27 @@ class User(Base, _AuthMixin):
 
     @classmethod
     def get_by_email(cls, email, verify=None):
-        user = session.query(cls).filter(cls.email == email.lower()).first()
-        if user is None:
-            print("User %s not found." % email.lower())
-            return None
-
-        if verify:
-            if verify_password(user.password, verify):
-                user.last_login_at = datetime.now()
-                user.login_count += 1
-                user.save()
-                return user
-            else:
-                print("User password failed.")
+        """Get a user by email."""
+        with db_session() as session:
+            user = session.query(cls).filter(cls.email == email.lower()).first()
+            if user is None:
+                print("User %s not found." % email.lower())
                 return None
 
-        return user
+            if verify:
+                if verify_password(user.password, verify):
+                    user.last_login_at = datetime.now()
+                    user.login_count += 1
+                    user.save(session=session)
+                    # Load the attributes before returning out of the session.
+                    session.refresh(user)
+                    return user
+                else:
+                    print("User password failed.")
+                    return None
+            # Load the attributes before returning out of the session.
+            session.refresh(user)
+            return user
 
     @classmethod
     def get_by_identity(cls, identity):
@@ -157,13 +177,16 @@ class User(Base, _AuthMixin):
             raise BadIdentity("'{identity}' is not an identity."
                               .format(identity=identity))
 
-        user = cls.query.get(identity['id'])
-        if not user:
-            raise BadIdentity("User {} does not exist.".format(identity['id']))
-        if user.email.lower() != identity['email'].lower():
-            raise BadIdentity("Invalid identity, email on database does "
-                              "not match email given.")
-        return user
+        with db_session() as session:
+            user = session.query(cls).get(identity['id'])
+            if not user:
+                raise BadIdentity("User {} does not exist.".format(identity['id']))
+            if user.email.lower() != identity['email'].lower():
+                raise BadIdentity("Invalid identity, email on database does "
+                                  "not match email given.")
+            # Load the attributes before returning out of the session.
+            session.refresh(user)
+            return user
 
     def reset_password(self, new_password):
         self.password = hash_password(new_password)
@@ -173,8 +196,9 @@ class User(Base, _AuthMixin):
         """Give this user a role."""
         role = Role.get_by_name(role_name)
         new_link = RolesUsers(user_id=self.id, role_id=role.id)
-        session.add(new_link)
-        session.commit()
+        with db_session() as session:
+            session.add(new_link)
+            session.commit()
         return
 
     def identity(self):
@@ -206,7 +230,7 @@ class QueryLog(Base, _AuthMixin):
     result_status = Column(Integer)
     user_id = Column(Integer, ForeignKey("user.id"))
     api_key_role_id = Column(Integer, ForeignKey("role.id"))
-    user = relationship(User)
+    user = relationship(User, lazy='joined')
     user_ip = Column(String(64))
     user_agent = Column(String)
     url = Column(String)

@@ -9,11 +9,17 @@ from flask_jwt_extended import jwt_required, get_jwt_identity, \
     create_access_token, set_access_cookies, unset_jwt_cookies, JWTManager
 
 from flask import Blueprint, jsonify, request, redirect
+import sqlalchemy.exc
 
 from indralab_auth_tools.log import is_log_running, set_user_in_log, \
     set_role_in_log
-from indralab_auth_tools.src.models import User, Role, BadIdentity, \
-    IntegrityError, start_fresh, AuthLog, UserDatabaseError
+from indralab_auth_tools.src.models import (
+    User,
+    Role,
+    BadIdentity,
+    AuthLog,
+    UserDatabaseError
+)
 
 auth = Blueprint('auth', __name__, template_folder='templates')
 
@@ -44,7 +50,7 @@ def config_auth(app):
     jwt = JWTManager(app)
 
     @jwt.expired_token_loader
-    def handle_expired_token(token):
+    def handle_expired_token(jwt_header, jwt_payload):
         resp = redirect(request.url)
         unset_jwt_cookies(resp)
         return resp
@@ -56,7 +62,6 @@ def auth_wrapper(func):
     @jwt_required(optional=True)
     @wraps(func)
     def with_auth_log():
-        start_fresh()
         logger.info("Handling %s request." % func.__name__)
 
         user_identity = get_jwt_identity()
@@ -122,7 +127,7 @@ def register(auth_details, user_identity):
         auth_details['new_user_id'] = new_user.id
         return jsonify({'register': True,
                         'message': 'User {} created'.format(data['email'])})
-    except IntegrityError:
+    except sqlalchemy.exc.IntegrityError:
         return jsonify({'message': 'User {} exists.'.format(data['email'])}), \
                400
     except Exception as e:
